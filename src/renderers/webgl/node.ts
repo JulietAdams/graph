@@ -167,7 +167,10 @@ export class NodeRenderer<N extends Node, E extends Edge>{
 
       if (this.label) {
         this.labelLoader = FontLoader(this.labelFamily)((family) => {
-          if(this.label === undefined || this.labelFamily !== family) return
+          if (this.label === undefined || this.labelFamily !== family) return
+
+          this.renderer.dirty = true
+
           this.labelSprite = new PIXI.Text(this.label, {
             fontFamily: this.labelFamily,
             fontSize: (this.labelSize ?? labelSize) * 2.5, // TODO: is there a way to avoid this?
@@ -257,6 +260,9 @@ export class NodeRenderer<N extends Node, E extends Edge>{
           if (badge.icon?.type === 'textIcon') {
             const badgeIconLoader = FontLoader(badge.icon.family)((family) => {
               if (this.badgeSpriteContainer === undefined || badge.icon?.type !== 'textIcon' || badge.icon?.family !== family) return
+
+              this.renderer.dirty = true
+
               badgeIconSprite = this.renderer.fontIcon.create(badge.icon.text, badge.icon.family, badge.icon.size, 'bold', badge.icon.color)
 
               this.badgeSprites.push({ fill: badgeFillSprite, stroke: badgeStrokeSprite, icon: badgeIconSprite, angle: (badge.position * RADIANS_PER_DEGREE) - HALF_PI })
@@ -269,6 +275,9 @@ export class NodeRenderer<N extends Node, E extends Edge>{
           } else if (badge.icon?.type === 'imageIcon') {
             const badgeIconLoader = ImageLoader(badge.icon.url)((url) => {
               if (this.badgeSpriteContainer === undefined || badge.icon?.type !== 'imageIcon' || badge.icon?.url !== url) return
+
+              this.renderer.dirty = true
+
               badgeIconSprite = this.renderer.image.create(badge.icon.url)
               this.badgeSprites.push({ fill: badgeFillSprite, stroke: badgeStrokeSprite, icon: badgeIconSprite, angle: (badge.position * RADIANS_PER_DEGREE) - HALF_PI })
 
@@ -299,6 +308,9 @@ export class NodeRenderer<N extends Node, E extends Edge>{
       if (this.icon?.type === 'textIcon') {
         this.iconLoader = FontLoader(this.icon.family)((family) => {
           if (this.icon?.type !== 'textIcon' || this.icon.family !== family) return
+
+          this.renderer.dirty = true
+
           this.iconSprite = this.renderer.fontIcon.create(this.icon.text, this.icon.family, this.icon.size, 'normal', this.icon.color)
 
           if (this.badgeSpriteContainer === undefined) {
@@ -312,6 +324,9 @@ export class NodeRenderer<N extends Node, E extends Edge>{
       } else if (this.icon?.type === 'imageIcon') {
         this.iconLoader = ImageLoader(this.icon.url)((url) => {
           if (this.icon?.type !== 'imageIcon' || this.icon.url !== url) return
+
+          this.renderer.dirty = true
+
           this.iconSprite = this.renderer.image.create(this.icon.url, this.icon.scale, this.icon.offsetX, this.icon.offsetY)
 
           if (this.badgeSpriteContainer === undefined) {
@@ -356,7 +371,12 @@ export class NodeRenderer<N extends Node, E extends Edge>{
   }
 
   render() {
-    if (this.renderer.animationPercent < 1 && this.renderer.clickedNode?.node.id !== this.node.id) {
+    /**
+     * TODO - alternatively, if some node positions should interpolate when other nodes are dragged,
+     * use the same strategy as zoom: record expected new position, and interpolate if update doesn't match
+     * that position
+     */
+    if (this.renderer.animationPercent < 1 && !this.renderer.dragging) {
       this.x = this.interpolateX(this.renderer.animationPercent)
       this.y = this.interpolateY(this.renderer.animationPercent)
       this.radius = this.interpolateRadius(this.renderer.animationPercent)
@@ -502,12 +522,12 @@ export class NodeRenderer<N extends Node, E extends Edge>{
     this.nodeMoveXOffset = 0
     this.nodeMoveYOffset = 0
 
-    // decide which handler to call based on if the node was being dragged
-    if (this.draggingNode) {
-      this.draggingNode = false
+    if (this.renderer.dragging) {
+      this.renderer.dragging = false
       this.renderer.onNodeDragEnd?.(event, this.node, this.x, this.y)
     } else {
       this.renderer.onNodePointerUp?.(event, this.node, this.x, this.y)
+
       if (this.doubleClick) {
         this.doubleClick = false
         this.renderer.onNodeDoubleClick?.(event, this.node, this.x, this.y)
@@ -520,11 +540,11 @@ export class NodeRenderer<N extends Node, E extends Edge>{
 
     const position = this.renderer.root.toLocal(event.data.global)
 
-    if (this.draggingNode === false) {
-      this.draggingNode = true
-      // fire both node drag start and on node drag when first drag event occurs, may not need to pass positions in drag start though
+    if (!this.renderer.dragging) {
+      this.renderer.dragging = true
       this.renderer.onNodeDragStart?.(event, this.node, position.x - this.nodeMoveXOffset, position.y - this.nodeMoveYOffset)
     }
+
     this.renderer.onNodeDrag?.(event, this.node, position.x - this.nodeMoveXOffset, position.y - this.nodeMoveYOffset)
   }
 

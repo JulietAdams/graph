@@ -152,9 +152,8 @@ var NodeRenderer = /** @class */ (function () {
             _this.renderer.decelerateInteraction.resume();
             _this.nodeMoveXOffset = 0;
             _this.nodeMoveYOffset = 0;
-            // decide which handler to call based on if the node was being dragged
-            if (_this.draggingNode) {
-                _this.draggingNode = false;
+            if (_this.renderer.dragging) {
+                _this.renderer.dragging = false;
                 (_b = (_a = _this.renderer).onNodeDragEnd) === null || _b === void 0 ? void 0 : _b.call(_a, event, _this.node, _this.x, _this.y);
             }
             else {
@@ -170,9 +169,8 @@ var NodeRenderer = /** @class */ (function () {
             if (_this.renderer.clickedNode === undefined)
                 return;
             var position = _this.renderer.root.toLocal(event.data.global);
-            if (_this.draggingNode === false) {
-                _this.draggingNode = true;
-                // fire both node drag start and on node drag when first drag event occurs, may not need to pass positions in drag start though
+            if (!_this.renderer.dragging) {
+                _this.renderer.dragging = true;
                 (_b = (_a = _this.renderer).onNodeDragStart) === null || _b === void 0 ? void 0 : _b.call(_a, event, _this.node, position.x - _this.nodeMoveXOffset, position.y - _this.nodeMoveYOffset);
             }
             (_d = (_c = _this.renderer).onNodeDrag) === null || _d === void 0 ? void 0 : _d.call(_c, event, _this.node, position.x - _this.nodeMoveXOffset, position.y - _this.nodeMoveYOffset);
@@ -265,6 +263,7 @@ var NodeRenderer = /** @class */ (function () {
                     var _a;
                     if (_this.label === undefined || _this.labelFamily !== family)
                         return;
+                    _this.renderer.dirty = true;
                     _this.labelSprite = new PIXI.Text(_this.label, {
                         fontFamily: _this.labelFamily,
                         fontSize: ((_a = _this.labelSize) !== null && _a !== void 0 ? _a : labelSize) * 2.5,
@@ -365,6 +364,7 @@ var NodeRenderer = /** @class */ (function () {
                             var _a, _b;
                             if (_this.badgeSpriteContainer === undefined || ((_a = badge.icon) === null || _a === void 0 ? void 0 : _a.type) !== 'textIcon' || ((_b = badge.icon) === null || _b === void 0 ? void 0 : _b.family) !== family)
                                 return;
+                            _this.renderer.dirty = true;
                             badgeIconSprite = _this.renderer.fontIcon.create(badge.icon.text, badge.icon.family, badge.icon.size, 'bold', badge.icon.color);
                             _this.badgeSprites.push({ fill: badgeFillSprite, stroke: badgeStrokeSprite, icon: badgeIconSprite, angle: (badge.position * utils_1.RADIANS_PER_DEGREE) - utils_1.HALF_PI });
                             _this.badgeSpriteContainer.addChild(badgeStrokeSprite);
@@ -379,6 +379,7 @@ var NodeRenderer = /** @class */ (function () {
                             var _a, _b;
                             if (_this.badgeSpriteContainer === undefined || ((_a = badge.icon) === null || _a === void 0 ? void 0 : _a.type) !== 'imageIcon' || ((_b = badge.icon) === null || _b === void 0 ? void 0 : _b.url) !== url)
                                 return;
+                            _this.renderer.dirty = true;
                             badgeIconSprite = _this.renderer.image.create(badge.icon.url);
                             _this.badgeSprites.push({ fill: badgeFillSprite, stroke: badgeStrokeSprite, icon: badgeIconSprite, angle: (badge.position * utils_1.RADIANS_PER_DEGREE) - utils_1.HALF_PI });
                             _this.badgeSpriteContainer.addChild(badgeStrokeSprite);
@@ -421,6 +422,7 @@ var NodeRenderer = /** @class */ (function () {
                     var _a;
                     if (((_a = _this.icon) === null || _a === void 0 ? void 0 : _a.type) !== 'textIcon' || _this.icon.family !== family)
                         return;
+                    _this.renderer.dirty = true;
                     _this.iconSprite = _this.renderer.fontIcon.create(_this.icon.text, _this.icon.family, _this.icon.size, 'normal', _this.icon.color);
                     if (_this.badgeSpriteContainer === undefined) {
                         // no badges - add to top of nodeContainer
@@ -437,6 +439,7 @@ var NodeRenderer = /** @class */ (function () {
                     var _a;
                     if (((_a = _this.icon) === null || _a === void 0 ? void 0 : _a.type) !== 'imageIcon' || _this.icon.url !== url)
                         return;
+                    _this.renderer.dirty = true;
                     _this.iconSprite = _this.renderer.image.create(_this.icon.url, _this.icon.scale, _this.icon.offsetX, _this.icon.offsetY);
                     if (_this.badgeSpriteContainer === undefined) {
                         // no badges - add to top of nodeContainer
@@ -487,8 +490,12 @@ var NodeRenderer = /** @class */ (function () {
     NodeRenderer.prototype.render = function () {
         var e_5, _a, e_6, _b;
         var _this = this;
-        var _c;
-        if (this.renderer.animationPercent < 1 && ((_c = this.renderer.clickedNode) === null || _c === void 0 ? void 0 : _c.node.id) !== this.node.id) {
+        /**
+         * TODO - alternatively, if some node positions should interpolate when other nodes are dragged,
+         * use the same strategy as zoom: record expected new position, and interpolate if update doesn't match
+         * that position
+         */
+        if (this.renderer.animationPercent < 1 && !this.renderer.dragging) {
             this.x = this.interpolateX(this.renderer.animationPercent);
             this.y = this.interpolateY(this.renderer.animationPercent);
             this.radius = this.interpolateRadius(this.renderer.animationPercent);
@@ -513,8 +520,8 @@ var NodeRenderer = /** @class */ (function () {
         var strokeWidths = this.radius;
         if (this.stroke !== undefined) {
             try {
-                for (var _d = __values(this.strokeSprites), _e = _d.next(); !_e.done; _e = _d.next()) {
-                    var _f = _e.value, sprite = _f.sprite, width = _f.width;
+                for (var _c = __values(this.strokeSprites), _d = _c.next(); !_d.done; _d = _c.next()) {
+                    var _e = _d.value, sprite = _e.sprite, width = _e.width;
                     strokeWidths += width;
                     sprite.scale.set(strokeWidths / circleSprite_1.CircleSprite.radius);
                 }
@@ -522,16 +529,16 @@ var NodeRenderer = /** @class */ (function () {
             catch (e_5_1) { e_5 = { error: e_5_1 }; }
             finally {
                 try {
-                    if (_e && !_e.done && (_a = _d.return)) _a.call(_d);
+                    if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
                 }
                 finally { if (e_5) throw e_5.error; }
             }
         }
         if (this.badge !== undefined) {
             try {
-                for (var _g = __values(this.badgeSprites), _h = _g.next(); !_h.done; _h = _g.next()) {
-                    var _j = _h.value, fill = _j.fill, stroke = _j.stroke, icon = _j.icon, angle = _j.angle;
-                    var _k = __read(utils_1.movePoint(0, 0, angle, this.radius + this.strokeWidth), 2), x = _k[0], y = _k[1];
+                for (var _f = __values(this.badgeSprites), _g = _f.next(); !_g.done; _g = _f.next()) {
+                    var _h = _g.value, fill = _h.fill, stroke = _h.stroke, icon = _h.icon, angle = _h.angle;
+                    var _j = __read(utils_1.movePoint(0, 0, angle, this.radius + this.strokeWidth), 2), x = _j[0], y = _j[1];
                     fill.position.set(x, y);
                     stroke.position.set(x, y);
                     icon !== undefined && icon.position.set(x, y);
@@ -540,7 +547,7 @@ var NodeRenderer = /** @class */ (function () {
             catch (e_6_1) { e_6 = { error: e_6_1 }; }
             finally {
                 try {
-                    if (_h && !_h.done && (_b = _g.return)) _b.call(_g);
+                    if (_g && !_g.done && (_b = _f.return)) _b.call(_f);
                 }
                 finally { if (e_6) throw e_6.error; }
             }
